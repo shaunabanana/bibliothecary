@@ -1,0 +1,33 @@
+{
+  "name": "bibliothecary",
+  "version": "1.0.0",
+  "author": "Shengchen Zhang [shengchenzhang1207@gmail.com] (https://shengchen.design)",
+  "description": "A string search library implementing typical operators found in academic databases (boolean operators, NEAR, wildcards).",
+  "main": "dist/cjs/index.js",
+  "module": "dist/mjs/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/mjs/index.js",
+      "require": "./dist/cjs/index.js"
+    }
+  },
+  "scripts": {
+    "compile": "npx nearleyc src/grammar/grammar.ne -o src/grammar/index.js",
+    "prebuild": "npm run compile",
+    "build": "rm -fr dist/* && npx tsc -p tsconfig.json && npx tsc -p tsconfig-cjs.json"
+  },
+  "keywords": ["boolean search", "boolean query", "academic", "string search", "nearley", "moo"],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/nearley": "^2.11.2",
+    "typescript": "^4.7.4"
+  },
+  "dependencies": {
+    "moo": "^0.5.1",
+    "nearley": "^2.20.1"
+  },
+  "bugs": {
+    "url": "https://github.com/shaunabanana/bibliothecary/issues"
+  },
+  "homepage": "https://github.com/shaunabanana/bibliothecary"
+}
