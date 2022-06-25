@@ -1,6 +1,7 @@
 # Bibliothecary
 
 A string search library implementing typical operators found in academic databases (boolean operators, NEAR, wildcards).
+This library lies in the heart of [Snowball](https://github.com/shaunabanana/snowball).
 
 ## Installation
 ```
@@ -43,3 +44,6 @@ const shouldBeFalse = new Query('academic AND search AND NOT library').search(in
 ### Operator priorities
 - Operators have different priorities. For example, `word1 OR word2 AND word3` will be interpreted as `word1 OR (word2 AND word3)`, because `AND` has higher priority than `OR`.
 - Operators priorities are ordered as such: `""?*` > `()` > `ONEAR` > `NEAR` > `NOT` > `AND` > `OR`.
+
+## Similar projects
+- [@spaceavocado/librarian](https://github.com/spaceavocado/librarian)
