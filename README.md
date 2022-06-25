@@ -24,14 +24,14 @@ const shouldBeFalse = new Query('academic AND search AND NOT library').search(in
 
 ## A quick primer on search operators
 ### Strings
-- `word1 word2` matches strings that mentions any of word1 and word2.
-- `"word1 word2"` matches strings that contains exactly the phrase "word1 word2".
+- `word1 word2` matches strings that mentions any of `word1` and `word2`.
+- `"word1 word2"` matches strings that contains exactly the phrase `"word1 word2"`.
 ### Search operators
-- `word1 AND word2` matches strings that mentions both word1 and word2.
-- `word1 OR word2` matches strings that mentions any of word1 and word2.
-- `NOT word1` matches strings that does not mention word1 anywhere.
+- `word1 AND word2` matches strings that mentions both `word1` and `word2`.
+- `word1 OR word2` matches strings that mentions any of `word1` and `word2`.
+- `NOT word1` matches strings that does not mention `word1` anywhere.
 - `word1 NEAR/n word2` requires that `word1` and `word2` are `n` words or less apart.
-- `word1 ONEAR/n word2` does the same as `NEAR/n`, while also requires `word1`` to appear before `word2`.
+- `word1 ONEAR/n word2` does the same as `NEAR/n`, while also requires `word1` to appear before `word2`.
 ### Wildcards
 - `?` matches any one letter, e.g., `wor?` matches `word` and `work`.
 - `*` matches any number of letters, e.g., `wor*` matches `word` and `worry`.
