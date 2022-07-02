@@ -14,8 +14,8 @@ const lexer = moo.compile({
         match: /(?:near|NEAR)\/(?:[0-9]|[1-9][0-9]+)/,
         value: s => Number.parseInt(s.split('/')[1])
     },
-    word:  /[^'"() \t\n\r/"]+/,
-    quote:  /['"]/,
+    word:  /[^"() \t\n\r/"]+/,
+    quote:  /["]/,
     lparen:  '(',
     rparen:  ')',
     NL:      { match: /[\n\r]/, lineBreaks: true },
@@ -57,10 +57,11 @@ const processParentheses = function (data) {
 };
 
 const processUnquotedTerm = function (data) { 
+    const words = data[0].map(word => word.value.toLowerCase());
     return {
         type: 'TERM',
         parameter: false,
-        right: data[0].map(word => word.value.toLowerCase())
+        right: [...new Set(words)]
     }; 
 };
 
@@ -75,7 +76,7 @@ const processQuotedTerm = function (data) {
 
 @lexer lexer
 
-main          -> or_clause  {% unArray %}
+main            -> or_clause  {% unArray %}
 
 or_clause       -> or_clause ws:+ %or ws:+ or_clause  {% operatorizeTwoOperands %}
                  | and_clause

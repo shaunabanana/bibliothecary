@@ -14,7 +14,8 @@
   "scripts": {
     "compile": "npx nearleyc src/grammar/grammar.ne -o src/grammar/index.js",
     "prebuild": "npm run compile",
-    "build": "rm -fr dist/* && npx tsc -p tsconfig.json && npx tsc -p tsconfig-cjs.json"
+    "build": "rm -fr dist/* && npx tsc -p tsconfig.json && npx tsc -p tsconfig-cjs.json",
+    "test": "npm run build && npx mocha"
   },
   "keywords": [
     "boolean search",

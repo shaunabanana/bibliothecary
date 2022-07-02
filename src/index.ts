@@ -241,16 +241,15 @@ export class Query {
     }
 
     static termOperator(text: string, _: any, words: string[], quoted: boolean) {
-        // console.log('TERM', this, text, words);
         const result: Match[] = [];
         if (quoted) {
-            const query = formatWildcards(words.join(' +'));
+            const query = formatWildcards(words.join('\\s+'));
             const regexp = new RegExp(query, 'gi');
             const matches = [...text.matchAll(regexp)];
             if (matches) {
                 // console.log(matches);
                 matches.forEach((match) => {
-                    if (!match.index) return;
+                    if (match.index === undefined) return;
                     result.push({
                         term: `"${words.join(' ')}"`,
                         text: match[0],
@@ -265,9 +264,8 @@ export class Query {
                 const regexp = new RegExp(query, 'gi');
                 const matches = [...text.matchAll(regexp)];
                 if (matches) {
-                    // console.log(matches);
                     matches.forEach((match) => {
-                        if (!match.index) return;
+                        if (match.index === undefined) return;
                         result.push({
                             term: word,
                             text: match[0],
