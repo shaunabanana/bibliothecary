@@ -1,6 +1,6 @@
 {
   "name": "bibliothecary",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "author": "Shengchen Zhang [shengchenzhang1207@gmail.com] (https://shengchen.design)",
   "description": "A string search library implementing typical operators found in academic databases (boolean operators, NEAR, wildcards).",
   "main": "dist/cjs/index.js",
