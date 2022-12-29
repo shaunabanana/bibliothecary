@@ -1,281 +1,116 @@
 import { Parser, Grammar } from 'nearley';
+import WinkNLP from 'wink-nlp';
+import Model from 'wink-eng-lite-web-model';
 
+
+import { Token, TokenizedText, ParseTreeNode, MatchResult, ParseTreeNear } from './types';
+import { OperatorRegistry } from './registry';
+import {
+    andOperator, orOperator, notOperator, termOperator, nearOperator, orderedNearOperator
+} from './operators';
 import grammar from './grammar';
 
-type ParseTreeNode = {
-    type: string,
-    left: ParseTreeNode | ParseTreeTerm,
-    right: ParseTreeNode | ParseTreeTerm,
-    parameter?: number | boolean,
-}
+const nlp = WinkNLP(Model);
+const its = nlp.its;
 
-type ParseTreeTerm = {
-    type: string,
-    left: undefined,
-    right: string[],
-    parameter?: boolean,
-}
-
-type OperatorRegistry = {
-    [key: string]: Function;
-};
-
-type Match = {
-    term: string,
-    text: string,
-    start: number,
-    length: number,
-    wordIndex?: number
-}
-
-type OrderMatch = {
-    text: string,
-    start: number,
-    length: number,
-    location: number
-}
-
-function formatWildcards(query: string) {
-    return query.replace('*', '[^ \\t\\n\\r]*').replace('?', '[^ \\t\\n\\r]');
-}
+const operators = OperatorRegistry.create()
+    .register('AND', andOperator)
+    .register('OR', orOperator)
+    .register('NOT', notOperator)
+    .register('TERM', termOperator)
+    .register('NEAR', nearOperator)
+    .register('ONEAR', orderedNearOperator)
 
 export class Query {
 
     parser: Parser
     tree: ParseTreeNode[]
-    operators: OperatorRegistry
 
     constructor(query: string) {
         this.parser = new Parser(Grammar.fromCompiled(grammar));
         this.parser.feed(query);
         this.tree = this.parser.results;
+    }
 
-        this.operators = {
-            AND: this.andOperator.bind(this),
-            OR: this.orOperator.bind(this),
-            NOT: this.notOperator.bind(this),
-            NEAR: Query.nearOperator.bind(this),
-            ONEAR: Query.orderedNearOperator.bind(this),
-            TERM: Query.termOperator.bind(this),
-        };
+    tokenize(text: string): TokenizedText {
+        const document = nlp.readDoc(text);
+
+        // Process tokens into required format
+        let start = 0;
+        const tokenSpaces = document.tokens().out(its.precedingSpaces);
+        const tokenTypes = document.tokens().out(its.type);
+        const unmergedTokens = document.tokens().out().map((value, index) => {
+            start += tokenSpaces[index].length;
+            const token = {
+                type: tokenTypes[index],
+                index: index,
+                text: value,
+                start: start,
+                length: value.length
+            }
+            start += value.length;
+            return token;
+        }).filter((token) => token.type !== 'punctuation'); // Remove punctuations
+
+        // Ensure there are tokens for the next procedure by handling the empty case early
+        if (unmergedTokens.length === 0) return { original: text, tokens: [] };
+
+        // Merge abbreviations such as "'s" with the preceding word
+        const tokens = [unmergedTokens[0]] as Array<Token>;
+        let lastToken: Token = unmergedTokens[0];
+        unmergedTokens.slice(1).forEach((token) => {
+            if (
+                token.text.charAt(0) === "'"
+                && token.start === lastToken.start + lastToken.length
+            ) {
+                lastToken.text += token.text;
+                lastToken.length += token.length;
+            } else if (token.type !== 'punctuation') {
+                tokens.push(token);
+                lastToken = token;
+            }
+        })
+
+        // Finalize word index
+        tokens.forEach((token, index) => {
+            token.index = index;
+        })
+        return { original: text, tokens: tokens };
     }
 
     search(text: string) {
-        // console.log(this.tree[0]);
-        return this.operators[this.tree[0].type](
-            text,
-            this.tree[0].left,
-            this.tree[0].right,
-            this.tree[0].parameter,
-        );
+        return this.recursiveSearch(this.tokenize(text), this.tree[0]);
     }
 
-    andOperator(text: string, left: ParseTreeNode, right: ParseTreeNode) {
-        // console.log('AND', text, left, right);
-        let matches: Match[] = [];
-
-        const leftResult = this.operators[left.type](text, left.left, left.right, left.parameter);
-        if (leftResult) matches = matches.concat(leftResult);
-        else return false;
-
-        const rightResult = this.operators[right.type](
-            text,
-            right.left,
-            right.right,
-            right.parameter,
-        );
-        if (rightResult) matches = matches.concat(rightResult);
-        else return false;
-
-        return matches;
-    }
-
-    orOperator(text: string, left: ParseTreeNode, right: ParseTreeNode) {
-        // console.log('OR', text, left, right);
-        let matches: Match[] = [];
-
-        const leftResult = this.operators[left.type](text, left.left, left.right, left.parameter);
-        if (leftResult) matches = matches.concat(leftResult);
-
-        const rightResult = this.operators[right.type](
-            text,
-            right.left,
-            right.right,
-            right.parameter,
-        );
-        if (rightResult) matches = matches.concat(rightResult);
-
-        return matches.length > 0 ? matches : false;
-    }
-
-    notOperator(text: string, _: any, right: ParseTreeNode) {
-        // console.log('NOT', text, right);
-        const result = this.operators[right.type](text, right.left, right.right, right.parameter);
-        return result ? false : [];
-    }
-
-    static nearOperator(text: string, left: ParseTreeTerm, right: ParseTreeTerm, distance: number) {
-        // console.log('NEAR', this, text, left, right, distance);
-        let currentStart = 0;
-        const textWords = text.split(' ').map((word) => {
-            const wordData = {
-                text: word,
-                start: currentStart,
-                length: word.length,
-            };
-            currentStart += word.length + 1;
-            return wordData;
-        });
-        const leftMatches: OrderMatch[] = [];
-        const rightMatches: OrderMatch[] = [];
-        const result: Match[] = [];
-
-        textWords.forEach((word, index) => {
-            const leftRegexp = new RegExp(formatWildcards(left.right[0]), 'i');
-            const rightRegexp = new RegExp(formatWildcards(right.right[0]), 'i');
-            if (leftRegexp.test(word.text)) {
-                leftMatches.push({
-                    text: word.text,
-                    location: index,
-                    start: word.start,
-                    length: word.length,
-                });
-            }
-            if (rightRegexp.test(word.text)) {
-                rightMatches.push({
-                    text: word.text,
-                    location: index,
-                    start: word.start,
-                    length: word.length,
-                });
-            }
-        });
-
-        // console.log(leftMatches, rightMatches);
-
-        leftMatches.forEach((leftMatch) => {
-            rightMatches.forEach((rightMatch) => {
-                if (Math.abs(leftMatch.location - rightMatch.location) <= distance) {
-                    result.push({
-                        term: left.right[0],
-                        text: leftMatch.text,
-                        start: leftMatch.start,
-                        length: leftMatch.length,
-                    });
-                    result.push({
-                        term: right.right[0],
-                        text: rightMatch.text,
-                        start: rightMatch.start,
-                        length: rightMatch.length,
-                    });
-                }
-            });
-        });
-
-        return result.length > 0 ? result : false;
-    }
-
-    static orderedNearOperator(text: string, left: ParseTreeTerm, right: ParseTreeTerm, distance: number) {
-        // console.log('NEAR', this, text, left, right, distance);
-        let currentStart = 0;
-        const textWords = text.split(' ').map((word: string) => {
-            const wordData = {
-                text: word,
-                start: currentStart,
-                length: word.length,
-            };
-            currentStart += word.length + 1;
-            return wordData;
-        });
-        const leftMatches: OrderMatch[] = [];
-        const rightMatches: OrderMatch[] = [];
-        const result: Match[] = [];
-
-        textWords.forEach((word, index) => {
-            const leftRegexp = new RegExp(formatWildcards(left.right[0]), 'i');
-            const rightRegexp = new RegExp(formatWildcards(right.right[0]), 'i');
-            if (leftRegexp.test(word.text)) {
-                leftMatches.push({
-                    text: word.text,
-                    location: index,
-                    start: word.start,
-                    length: word.length,
-                });
-            }
-            if (rightRegexp.test(word.text)) {
-                rightMatches.push({
-                    text: word.text,
-                    location: index,
-                    start: word.start,
-                    length: word.length,
-                });
-            }
-        });
-
-        // console.log(leftMatches, rightMatches);
-
-        leftMatches.forEach((leftMatch) => {
-            rightMatches.forEach((rightMatch) => {
-                if (
-                    // eslint-disable-next-line operator-linebreak
-                    leftMatch.location < rightMatch.location &&
-                    rightMatch.location - leftMatch.location <= distance
-                ) {
-                    result.push({
-                        term: left.right[0],
-                        text: leftMatch.text,
-                        start: leftMatch.start,
-                        length: leftMatch.length,
-                    });
-                    result.push({
-                        term: right.right[0],
-                        text: rightMatch.text,
-                        start: rightMatch.start,
-                        length: rightMatch.length,
-                    });
-                }
-            });
-        });
-
-        return result.length > 0 ? result : false;
-    }
-
-    static termOperator(text: string, _: any, words: string[], quoted: boolean) {
-        const result: Match[] = [];
-        if (quoted) {
-            const query = formatWildcards(words.join('\\s+'));
-            const regexp = new RegExp(query, 'gi');
-            const matches = [...text.matchAll(regexp)];
-            if (matches) {
-                // console.log(matches);
-                matches.forEach((match) => {
-                    if (match.index === undefined) return;
-                    result.push({
-                        term: `"${words.join(' ')}"`,
-                        text: match[0],
-                        start: match.index,
-                        length: match[0].length,
-                    });
-                });
-            }
+    recursiveSearch(text: TokenizedText, node: ParseTreeNode): MatchResult {
+        if (node.type === 'TERM') {
+            const operator = operators.get(node.type);
+            return operator(text, node.right, node.parameter);
         } else {
-            words.forEach((word) => {
-                const query = formatWildcards(word);
-                const regexp = new RegExp(query, 'gi');
-                const matches = [...text.matchAll(regexp)];
-                if (matches) {
-                    matches.forEach((match) => {
-                        if (match.index === undefined) return;
-                        result.push({
-                            term: word,
-                            text: match[0],
-                            start: match.index,
-                            length: match[0].length,
-                        });
-                    });
+            const resultsForOperand = (operand: ParseTreeNode) => {
+                if (operand.type === 'TERM') {
+                    const termOperator = operators.get('TERM');
+                    return termOperator(text, operand.right, operand.parameter)
+                } else {
+                    return this.recursiveSearch(text, operand);
                 }
-            });
+            }
+
+            if (node.type === 'NOT') {
+                const input = resultsForOperand(node.right);
+                const operator = operators.get(node.type);
+                return operator(input);
+            } else if (node.type === 'NEAR' || node.type === 'ONEAR') {
+                const left = resultsForOperand(node.left);
+                const right = resultsForOperand(node.right);
+                const operator = operators.get(node.type);
+                return operator(left, right, node.parameter);
+            } else {
+                const left = resultsForOperand(node.left);
+                const right = resultsForOperand(node.right);
+                const operator = operators.get(node.type);
+                return operator(left, right);
+            }
         }
-        return result.length > 0 ? result : false;
     }
 }

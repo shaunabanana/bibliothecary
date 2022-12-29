@@ -36,6 +36,12 @@ const appendItem = function (a, b) {
     } 
 };
 
+const selectItem = function (a) {
+    return function (d) { 
+        return d[a]; 
+    } 
+};
+
 const operatorizeOneOperand = function (data) {
     return {
         type: data[0].type.toUpperCase(),
@@ -57,7 +63,8 @@ const processParentheses = function (data) {
 };
 
 const processUnquotedTerm = function (data) { 
-    const words = data[0].map(word => word.value.toLowerCase());
+	// console.log(data);
+    const words = data[0].map(word => unArray(word).value.toLowerCase());
     return {
         type: 'TERM',
         parameter: false,
@@ -69,42 +76,43 @@ const processQuotedTerm = function (data) {
     return {
         type: 'TERM',
         parameter: true,
-        right: data[2].map(word => word.value.toLowerCase())
+        right: data[2].map(word => unArray(word).value.toLowerCase())
     }; 
 };
 %}
 
 @lexer lexer
 
-main            -> or_clause  {% unArray %}
+main            -> untrimmed {% unArray %}
 
-or_clause       -> or_clause ws:+ %or ws:+ or_clause  {% operatorizeTwoOperands %}
-                 | and_clause
+untrimmed       -> ws:* onear_clause ws:* {% selectItem(1) %}
 
-and_clause      -> and_clause ws:+ %and ws:+ and_clause {% operatorizeTwoOperands %}
-                 | not_clause
-
-not_clause      -> %not ws:+ not_clause                    {% operatorizeOneOperand %}
+onear_clause    -> onear_clause ws:+ %onear ws:+ near_clause {% operatorizeTwoOperands %}
                  | near_clause
 
-near_clause     -> term ws:+ %near ws:+ term {% operatorizeTwoOperands %}
-                 | onear_clause
+near_clause     -> near_clause ws:+ %near ws:+ or_clause {% operatorizeTwoOperands %}
+                 | or_clause
 
-onear_clause    -> term ws:+ %onear ws:+ term {% operatorizeTwoOperands %}
+or_clause       -> or_clause ws:+ %or ws:+ and_clause  {% operatorizeTwoOperands %}
+                 | and_clause
+
+and_clause      -> and_clause ws:+ %and ws:+ not_clause {% operatorizeTwoOperands %}
+                 | not_clause
+
+not_clause      -> %not ws:+ paren_clause                    {% operatorizeOneOperand %}
                  | paren_clause
 
-paren_clause    -> %lparen ws:* or_clause ws:* %rparen  {% processParentheses %}
+paren_clause    -> %lparen ws:* main ws:* %rparen  {% processParentheses %}
                  | term
 
 term            -> unquoted_term                    {% processUnquotedTerm %}
                  | %quote ws:* quoted_term ws:* %quote        {% processQuotedTerm %}
 
 unquoted_term   -> %word                            
-                 | unquoted_term ws %word          {% appendItem(0,2) %}
+                 | unquoted_term ws:+ %word          {% appendItem(0,2) %}
 
 quoted_term     -> %word                            
-                 | quoted_term ws %word            {% appendItem(0,2) %}
-                 | quoted_term ws (%and|%or|%not)  {% appendItem(0,2) %}
+                 | quoted_term ws:+ %word            {% appendItem(0,2) %}
+                 | quoted_term ws:+ (%and|%or|%not)  {% appendItem(0,2) %}
 
 ws              -> %WS                              {% d => null %}
-
