@@ -33,7 +33,9 @@
   "dependencies": {
     "mocha": "^10.0.0",
     "moo": "^0.5.1",
-    "nearley": "^2.20.1"
+    "nearley": "^2.20.1",
+    "wink-eng-lite-web-model": "^1.4.3",
+    "wink-nlp": "^1.13.0"
   },
   "bugs": {
     "url": "https://github.com/shaunabanana/bibliothecary/issues"
